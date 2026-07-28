@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>汉字 Flashcards</title>
+
+<style>
+  /* ============================================================
+     DESIGN TOKENS
+     A warm "paper" background evokes rice paper / stationery.
+     The single red accent references the traditional Chinese
+     seal-stamp (印章) — used sparingly as the app's signature mark.
+     ============================================================ */
+  :root{
+    --paper:      #FAF6EF;
+    --paper-dim:  #F1EBDD;
+    --ink:        #22201C;
+    --ink-soft:   #6F6A5E;
+    --seal-red:   #B3382C;
+    --seal-red-dim: #C9564A;
+    --card-white: #FFFFFF;
+    --shadow:     0 10px 30px rgba(34,32,28,0.10), 0 2px 8px rgba(34,32,28,0.06);
+    --shadow-lg:  0 20px 50px rgba(34,32,28,0.16), 0 4px 14px rgba(34,32,28,0.08);
+    --radius-lg:  22px;
+    --radius-md:  14px;
+    --radius-sm:  9px;
+    --font-cjk:   "Songti SC","STSong","PingFang SC","Noto Serif SC","Microsoft YaHei",serif;
+    --font-ui:    -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --font-en:    Georgia, "Times New Roman", serif;
+  }
+
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--font-ui);
+    overscroll-behavior-y:none;
+  }
+
+  /* Subtle paper texture using layered radial gradients (no external images) */
+  body{
+    background-image:
+      radial-gradient(circle at 20% 15%, rgba(179,56,44,0.035), transparent 45%),
+      radial-gradient(circle at 85% 80%, rgba(179,56,44,0.03), transparent 45%);
+  }
+
+  .app{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:24px 16px 32px;
+  }
+
+  /* ---------------- HEADER ---------------- */
+  header{
+    width:100%;
+    max-width:640px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:22px;
+  }
+
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+  }
+  .brand .mark{
+    font-family:var(--font-cjk);
+    font-size:26px;
+    color:var(--seal-red);
+    line-height:1;
+  }
+  .brand .title{
+    font-size:15px;
+    letter-spacing:0.04em;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    font-weight:600;
+  }
+
+  .header-actions{ display:flex; gap:8px; }
+
+  /* ---------------- BUTTONS ---------------- */
+  button{
+    font-family:var(--font-ui);
+    cursor:pointer;
+    border:none;
+    outline:none;
+    transition:transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease, opacity 0.15s ease;
+  }
+  button:active{ transform:scale(0.96); }
+
+  .btn{
+    background:var(--card-white);
+    color:var(--ink);
+    border:1px solid rgba(34,32,28,0.10);
+    border-radius:999px;
+    padding:9px 16px;
+    font-size:13px;
+    font-weight:600;
+    box-shadow:var(--shadow);
+  }
+  .btn:hover{ background:var(--paper-dim); }
+
+  .btn.icon-only{
+    width:38px; height:38px; padding:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  .btn.danger{ color:var(--seal-red); }
+
+  .btn.primary{
+    background:var(--seal-red);
+    color:#fff;
+    border:none;
+  }
+  .btn.primary:hover{ background:var(--seal-red-dim); }
+
+  /* ---------------- STATUS / ERROR MESSAGES ---------------- */
+  .toast{
+    max-width:640px;
+    width:100%;
+    background:#3A2A28;
+    color:#fff;
+    border-left:4px solid var(--seal-red);
+    padding:12px 16px;
+    border-radius:var(--radius-sm);
+    font-size:13.5px;
+    margin-bottom:16px;
+    box-shadow:var(--shadow);
+    display:none;
+  }
+  .toast.show{ display:block; }
+  .toast.success{ background:#2A3A2C; border-left-color:#4C8B57; }
+
+  /* ---------------- EMPTY STATE ---------------- */
+  .empty-state{
+    max-width:520px;
+    width:100%;
+    text-align:center;
+    background:var(--card-white);
+    border-radius:var(--radius-lg);
+    padding:52px 32px;
+    box-shadow:var(--shadow);
+    margin-top:10vh;
+  }
+  .empty-state .mark-big{
+    font-family:var(--font-cjk);
+    font-size:52px;
+    color:var(--seal-red);
+    margin-bottom:6px;
+  }
+  .empty-state h2{
+    margin:0 0 8px;
+    font-size:19px;
+  }
+  .empty-state p{
+    color:var(--ink-soft);
+    font-size:14px;
+    line-height:1.6;
+    margin:0 0 22px;
+  }
+  .empty-state code{
+    background:var(--paper-dim);
+    padding:2px 6px;
+    border-radius:4px;
+    font-size:12.5px;
+  }
+
+  /* ---------------- CARD STAGE ---------------- */
+  .stage{
+    width:100%;
+    max-width:520px;
+    display:none; /* shown via JS once vocab is loaded */
+    flex-direction:column;
+    align-items:center;
+  }
+  .stage.active{ display:flex; }
+
+  .card-scene{
+    width:100%;
+    aspect-ratio:4/5;
+    max-height:60vh;
+    perspective:1600px;
+    margin-bottom:20px;
+  }
+
+  .card{
+    position:relative;
+    width:100%;
+    height:100%;
+    cursor:pointer;
+    transform-style:preserve-3d;
+    transition:transform 0.5s cubic-bezier(.4,.2,.2,1);
+  }
+  .card.flipped{ transform:rotateY(180deg); }
+  .card.dragging{ transition:none; }
+
+  .card-face{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:32px;
+    background:var(--card-white);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-lg);
+    backface-visibility:hidden;
+    -webkit-backface-visibility:hidden;
+    text-align:center;
+  }
+
+  /* Signature element: a slim seal-red spine along the left edge,
+     evoking a stitched notebook / stamped stationery. */
+  .card-face::before{
+    content:"";
+    position:absolute;
+    left:0; top:22px; bottom:22px;
+    width:5px;
+    background:var(--seal-red);
+    border-radius:0 4px 4px 0;
+    opacity:0.85;
+  }
+
+  .card-face.back{ transform:rotateY(180deg); }
+
+  .hanzi{
+    font-family:var(--font-cjk);
+    font-size:clamp(48px,13vw,88px);
+    line-height:1.1;
+    color:var(--ink);
+    margin-bottom:14px;
+    word-break:break-word;
+  }
+  .pinyin{
+    font-family:var(--font-en);
+    font-style:italic;
+    font-size:clamp(16px,4vw,22px);
+    color:var(--ink-soft);
+    letter-spacing:0.02em;
+  }
+  .english{
+    font-family:var(--font-en);
+    font-size:clamp(20px,5vw,28px);
+    color:var(--ink);
+    line-height:1.4;
+  }
+  .face-label{
+    position:absolute;
+    top:16px; right:20px;
+    font-family:var(--font-ui);
+    font-size:10.5px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    opacity:0.55;
+  }
+
+  .hint{
+    font-size:12px;
+    color:var(--ink-soft);
+    opacity:0.7;
+    margin-top:2px;
+  }
+
+  /* ---------------- CONTROLS ---------------- */
+  .controls{
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+  }
+  .nav-btn{
+    width:52px; height:52px;
+    border-radius:50%;
+    background:var(--card-white);
+    box-shadow:var(--shadow);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--ink);
+  }
+  .nav-btn:disabled{ opacity:0.35; cursor:default; }
+  .nav-btn:disabled:active{ transform:none; }
+  .nav-btn svg{ width:20px; height:20px; }
+
+  .counter{
+    font-size:13.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    letter-spacing:0.02em;
+    min-width:120px;
+    text-align:center;
+  }
+  .counter .num{ color:var(--ink); }
+
+  .footer-actions{
+    margin-top:26px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    justify-content:center;
+  }
+
+  input[type="file"]{ display:none; }
+
+  .btn.small{
+    padding:6px 12px;
+    font-size:12px;
+    box-shadow:none;
+    border:1px solid rgba(34,32,28,0.12);
+  }
+
+  /* ---------------- MODAL (Add / Edit card) ---------------- */
+  .modal-overlay{
+    display:none;
+    position:fixed; inset:0;
+    background:rgba(34,32,28,0.42);
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    z-index:100;
+  }
+  .modal-overlay.show{ display:flex; }
+
+  .modal{
+    width:100%;
+    max-width:400px;
+    background:var(--card-white);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-lg);
+    padding:26px;
+  }
+  .modal h3{ margin:0 0 18px; font-size:17px; }
+
+  .field{
+    display:block;
+    margin-bottom:14px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink-soft);
+    letter-spacing:0.02em;
+  }
+  .field input{
+    display:block;
+    width:100%;
+    margin-top:6px;
+    padding:10px 12px;
+    font-size:15px;
+    font-family:inherit;
+    color:var(--ink);
+    background:var(--paper-dim);
+    border:1px solid rgba(34,32,28,0.10);
+    border-radius:var(--radius-sm);
+  }
+  .field input:focus{ outline:2px solid var(--seal-red); outline-offset:1px; }
+
+  .modal-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+    margin-top:6px;
+  }
+
+  /* ---------------- MANAGE PANEL ---------------- */
+  .manage-overlay{
+    display:none;
+    position:fixed; inset:0;
+    background:rgba(34,32,28,0.42);
+    align-items:center;
+    justify-content:center;
+    padding:16px;
+    z-index:90;
+  }
+  .manage-overlay.show{ display:flex; }
+
+  .manage-panel{
+    width:100%;
+    max-width:640px;
+    height:min(720px,92vh);
+    background:var(--paper);
+    border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-lg);
+    padding:22px;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .manage-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .manage-header h3{ margin:0; font-size:17px; }
+
+  .manage-toolbar input{
+    width:100%;
+    padding:10px 14px;
+    font-size:14px;
+    font-family:inherit;
+    color:var(--ink);
+    background:var(--card-white);
+    border:1px solid rgba(34,32,28,0.10);
+    border-radius:999px;
+    box-shadow:var(--shadow);
+  }
+  .manage-toolbar input:focus{ outline:2px solid var(--seal-red); outline-offset:1px; }
+
+  .manage-count{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:10px 2px 4px;
+  }
+
+  .manage-list{
+    flex:1;
+    overflow-y:auto;
+    margin-top:8px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    padding-right:2px;
+  }
+
+  .manage-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:var(--card-white);
+    border-radius:var(--radius-sm);
+    padding:10px 14px;
+    box-shadow:var(--shadow);
+  }
+  .manage-row-text{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    min-width:0;
+    flex-wrap:wrap;
+  }
+  .mr-hanzi{
+    font-family:var(--font-cjk);
+    font-size:18px;
+    color:var(--ink);
+    flex-shrink:0;
+  }
+  .mr-pinyin{
+    font-family:var(--font-en);
+    font-style:italic;
+    font-size:13px;
+    color:var(--ink-soft);
+    flex-shrink:0;
+  }
+  .mr-english{
+    font-size:13px;
+    color:var(--ink-soft);
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .manage-row-actions{
+    display:flex;
+    gap:6px;
+    flex-shrink:0;
+  }
+
+  .manage-empty{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13.5px;
+    padding:40px 12px;
+  }
+
+  .manage-footer{
+    display:flex;
+    gap:8px;
+    justify-content:center;
+    margin-top:14px;
+    padding-top:14px;
+    border-top:1px solid rgba(34,32,28,0.08);
+  }
+
+  /* ---------------- RESPONSIVE ---------------- */
+  @media (max-width:480px){
+    header{ margin-bottom:16px; }
+    .brand .title{ display:none; } /* keep header tidy on small phones */
+    .card-scene{ max-height:56vh; }
+    .manage-row{ flex-direction:column; align-items:stretch; }
+    .manage-row-actions{ justify-content:flex-end; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .card, button{ transition:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============== HEADER ============== -->
+  <header>
+    <div class="brand">
+      <span class="mark">字</span>
+      <span class="title">Chinese Flashcards</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn" id="btn-manage">Manage</button>
+      <button class="btn" id="btn-upload">Upload CSV</button>
+      <input type="file" id="file-input" accept=".csv,text/csv">
+    </div>
+  </header>
+
+  <!-- ============== STATUS MESSAGE ============== -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ============== EMPTY STATE (no vocab loaded yet) ============== -->
+  <div class="empty-state" id="empty-state">
+    <div class="mark-big">词</div>
+    <h2>No vocabulary loaded</h2>
+    <p>
+      Upload a CSV file with the columns <code>Hanzi, Pinyin, English</code>,
+      or add cards one at a time. Your list is saved in this browser, so
+      you only need to do this once.
+    </p>
+    <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+      <button class="btn primary" id="btn-upload-empty">Upload CSV</button>
+      <button class="btn" id="btn-add-empty">Add a Card</button>
+    </div>
+  </div>
+
+  <!-- ============== FLASHCARD STAGE ============== -->
+  <div class="stage" id="stage">
+
+    <div class="card-scene">
+      <div class="card" id="card">
+        <div class="card-face front">
+          <span class="face-label">Front</span>
+          <div class="hanzi" id="hanzi-text"></div>
+          <div class="pinyin" id="pinyin-text"></div>
+        </div>
+        <div class="card-face back">
+          <span class="face-label">Back</span>
+          <div class="english" id="english-text"></div>
+        </div>
+      </div>
+    </div>
+    <div class="hint">Tap card to flip &middot; swipe or use arrow keys to navigate</div>
+
+    <div class="controls" style="margin-top:18px;">
+      <button class="nav-btn" id="btn-prev" aria-label="Previous card">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+
+      <div class="counter" id="counter">Card <span class="num">0</span> of <span class="num">0</span></div>
+
+      <button class="nav-btn" id="btn-next" aria-label="Next card">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn" id="btn-shuffle">🔀 Shuffle</button>
+      <button class="btn" id="btn-add-card">Add New Card</button>
+      <button class="btn" id="btn-manage-2">Manage Deck</button>
+      <button class="btn" id="btn-export">Export CSV</button>
+      <button class="btn" id="btn-replace">Replace Vocabulary</button>
+      <button class="btn danger" id="btn-clear">Clear Vocabulary</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============== ADD / EDIT CARD MODAL ============== -->
+<!-- Reused for both "Add New Card" and "Edit" — the JS swaps the
+     title/values and remembers which mode it's in via editingId. -->
+<div class="modal-overlay" id="card-modal-overlay">
+  <div class="modal" id="card-modal">
+    <h3 id="card-modal-title">Add New Card</h3>
+
+    <label class="field">
+      <span>Hanzi</span>
+      <input type="text" id="input-hanzi" placeholder="你好" autocomplete="off">
+    </label>
+    <label class="field">
+      <span>Pinyin</span>
+      <input type="text" id="input-pinyin" placeholder="nǐ hǎo" autocomplete="off">
+    </label>
+    <label class="field">
+      <span>English</span>
+      <input type="text" id="input-english" placeholder="hello" autocomplete="off">
+    </label>
+
+    <div class="modal-actions">
+      <button class="btn" id="btn-card-cancel">Cancel</button>
+      <button class="btn primary" id="btn-card-save">Save Card</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============== MANAGE VOCABULARY PANEL ============== -->
+<div class="manage-overlay" id="manage-overlay">
+  <div class="manage-panel">
+    <div class="manage-header">
+      <h3>Manage Vocabulary</h3>
+      <button class="btn icon-only" id="btn-manage-close" aria-label="Close">✕</button>
+    </div>
+
+    <div class="manage-toolbar">
+      <input type="text" id="search-input" placeholder="Search Hanzi, Pinyin, or English…">
+    </div>
+    <div class="manage-count" id="manage-count">0 cards</div>
+
+    <div class="manage-list" id="manage-list"></div>
+
+    <div class="manage-footer">
+      <button class="btn" id="btn-manage-add">Add New Card</button>
+      <button class="btn" id="btn-manage-export">Export CSV</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   CHINESE FLASHCARD APP
+   All logic lives here. Sections are commented so you can find
+   and modify things easily:
+     1. State & constants
+     2. localStorage helpers
+     3. CSV parsing & export
+     4. Rendering (cards + manage list)
+     5. Navigation / flipping / study order
+     6. Input handling (keyboard, mouse, touch/swipe)
+     7. Vocabulary management (add / edit / delete / import / export)
+     8. Init
+   ================================================================ */
+
+/* ---------------- 1. STATE & CONSTANTS ---------------- */
+const STORAGE_KEY = "chineseFlashcards.vocab.v1";
+
+let vocab = [];          // array of { id, hanzi, pinyin, english }
+let studyOrder = [];     // array of indices into `vocab`, defines study order
+let orderMode = "sequential"; // "sequential" | "shuffled"
+let currentIndex = 0;    // index into `studyOrder` of the card currently shown
+let isFlipped = false;   // whether the current card is showing its back
+let editingId = null;    // id of the card being edited in the modal, or null when adding
+let uploadMode = "merge"; // "merge" | "replace" — which behavior the next CSV upload should use
+
+// Cached DOM references
+const el = {
+  toast: document.getElementById("toast"),
+  emptyState: document.getElementById("empty-state"),
+  stage: document.getElementById("stage"),
+  card: document.getElementById("card"),
+  hanzi: document.getElementById("hanzi-text"),
+  pinyin: document.getElementById("pinyin-text"),
+  english: document.getElementById("english-text"),
+  counter: document.getElementById("counter"),
+  btnPrev: document.getElementById("btn-prev"),
+  btnNext: document.getElementById("btn-next"),
+  btnShuffle: document.getElementById("btn-shuffle"),
+  btnUpload: document.getElementById("btn-upload"),
+  btnUploadEmpty: document.getElementById("btn-upload-empty"),
+  btnAddEmpty: document.getElementById("btn-add-empty"),
+  btnAddCard: document.getElementById("btn-add-card"),
+  btnReplace: document.getElementById("btn-replace"),
+  btnClear: document.getElementById("btn-clear"),
+  btnExport: document.getElementById("btn-export"),
+  fileInput: document.getElementById("file-input"),
+
+  // Add/Edit modal
+  cardModalOverlay: document.getElementById("card-modal-overlay"),
+  cardModal: document.getElementById("card-modal"),
+  cardModalTitle: document.getElementById("card-modal-title"),
+  inputHanzi: document.getElementById("input-hanzi"),
+  inputPinyin: document.getElementById("input-pinyin"),
+  inputEnglish: document.getElementById("input-english"),
+  btnCardCancel: document.getElementById("btn-card-cancel"),
+  btnCardSave: document.getElementById("btn-card-save"),
+
+  // Manage panel
+  btnManage: document.getElementById("btn-manage"),
+  btnManage2: document.getElementById("btn-manage-2"),
+  manageOverlay: document.getElementById("manage-overlay"),
+  btnManageClose: document.getElementById("btn-manage-close"),
+  searchInput: document.getElementById("search-input"),
+  manageCount: document.getElementById("manage-count"),
+  manageList: document.getElementById("manage-list"),
+  btnManageAdd: document.getElementById("btn-manage-add"),
+  btnManageExport: document.getElementById("btn-manage-export"),
+};
+
+/* ---------------- 2. LOCALSTORAGE HELPERS ---------------- */
+
+// Save the current vocab array to localStorage as JSON.
+function saveVocabToStorage(list){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }catch(e){
+    // Most likely a quota error with an extremely large file.
+    showToast("Could not save vocabulary to this browser (storage full).", "error");
+  }
+}
+
+// Load vocab from localStorage on startup. Returns [] if nothing saved
+// or if the saved data is corrupted.
+function loadVocabFromStorage(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(!raw) return [];
+  try{
+    const parsed = JSON.parse(raw);
+    if(Array.isArray(parsed)) return parsed;
+    return [];
+  }catch(e){
+    return [];
+  }
+}
+
+function clearVocabStorage(){
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+/* ---------------- 3. CSV PARSING & EXPORT ---------------- */
+
+// A small, dependency-free CSV parser that handles quoted fields
+// (including commas and escaped quotes inside quotes). Returns an
+// array of rows, where each row is an array of string cells.
+function parseCSV(text){
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+
+  // Normalize Windows/Mac line endings to \n before parsing.
+  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  for(let i = 0; i < text.length; i++){
+    const c = text[i];
+
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; } // escaped quote
+        else { inQuotes = false; }
+      }else{
+        field += c;
+      }
+    }else{
+      if(c === '"'){
+        inQuotes = true;
+      }else if(c === ','){
+        row.push(field); field = "";
+      }else if(c === '\n'){
+        row.push(field); field = "";
+        rows.push(row); row = [];
+      }else{
+        field += c;
+      }
+    }
+  }
+  // push the final field/row if the file didn't end with a newline
+  if(field.length > 0 || row.length > 0){
+    row.push(field);
+    rows.push(row);
+  }
+
+  // Drop any fully empty trailing rows (common at end of file)
+  return rows.filter(r => r.some(cell => cell.trim() !== ""));
+}
+
+// Turns raw parsed CSV rows into vocab objects, validating that the
+// required columns exist. Throws an Error with a user-friendly
+// message if the CSV is invalid.
+function csvRowsToVocab(rows){
+  if(rows.length < 2){
+    throw new Error("The CSV file needs a header row plus at least one vocabulary row.");
+  }
+
+  const header = rows[0].map(h => h.trim().toLowerCase());
+  const hanziIdx = header.indexOf("hanzi");
+  const pinyinIdx = header.indexOf("pinyin");
+  const englishIdx = header.indexOf("english");
+
+  if(hanziIdx === -1 || pinyinIdx === -1 || englishIdx === -1){
+    throw new Error('CSV must include the columns "Hanzi", "Pinyin", and "English".');
+  }
+
+  const list = [];
+  for(let i = 1; i < rows.length; i++){
+    const r = rows[i];
+    const hanzi = (r[hanziIdx] || "").trim();
+    const pinyin = (r[pinyinIdx] || "").trim();
+    const english = (r[englishIdx] || "").trim();
+
+    // Skip rows missing the essential Hanzi field rather than failing
+    // the whole import over one bad line.
+    if(!hanzi) continue;
+
+    list.push({ hanzi, pinyin, english });
+  }
+
+  if(list.length === 0){
+    throw new Error("No valid vocabulary rows were found in the CSV.");
+  }
+
+  return list;
+}
+
+// Wraps a field in quotes (escaping any inner quotes) only if it needs
+// it — i.e. it contains a comma, quote, or newline.
+function csvEscape(field){
+  const str = String(field == null ? "" : field);
+  if(/[",\n]/.test(str)){
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+// Builds a CSV string from the current deck and triggers a download,
+// so the user can keep a backup or move their deck elsewhere.
+function exportCSV(){
+  if(vocab.length === 0){
+    showToast("There's no vocabulary to export yet.", "error");
+    return;
+  }
+
+  const lines = ["Hanzi,Pinyin,English"];
+  vocab.forEach(card => {
+    lines.push([csvEscape(card.hanzi), csvEscape(card.pinyin), csvEscape(card.english)].join(","));
+  });
+
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "chinese-flashcards-export.csv";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  showToast("Exported " + vocab.length + " cards to CSV.", "success");
+}
+
+/* ---------------- 4. RENDERING ---------------- */
+
+// Show a toast message. type is "error" or "success".
+let toastTimer = null;
+function showToast(message, type){
+  el.toast.textContent = message;
+  el.toast.className = "toast show" + (type === "success" ? " success" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.toast.classList.remove("show"); }, 4000);
+}
+
+// Switch between the "no vocab" empty state and the card stage.
+function updateStageVisibility(){
+  const hasVocab = vocab.length > 0;
+  el.emptyState.style.display = hasVocab ? "none" : "block";
+  el.stage.classList.toggle("active", hasVocab);
+}
+
+// Render whatever card is at currentIndex (via studyOrder) into the DOM.
+// studyOrder is a list of indices into `vocab` — this indirection is
+// what lets us shuffle study order without reordering the deck itself.
+function renderCard(){
+  if(vocab.length === 0 || studyOrder.length === 0) return;
+
+  const card = vocab[studyOrder[currentIndex]];
+  el.hanzi.textContent = card.hanzi;
+  el.pinyin.textContent = card.pinyin;
+  el.english.textContent = card.english || "(no definition)";
+
+  el.counter.innerHTML =
+    'Card <span class="num">' + (currentIndex + 1) + '</span> of <span class="num">' + studyOrder.length + '</span>';
+
+  el.btnPrev.disabled = currentIndex === 0;
+  el.btnNext.disabled = currentIndex === studyOrder.length - 1;
+}
+
+// Escapes text before it's inserted via innerHTML in the manage list,
+// so Hanzi/Pinyin/English containing < > & etc. render safely as text.
+function escapeHtml(str){
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : str;
+  return div.innerHTML;
+}
+
+// Renders the searchable list of every card inside the manage panel.
+function renderManageList(){
+  const query = el.searchInput.value.trim().toLowerCase();
+
+  const filtered = query
+    ? vocab.filter(c =>
+        c.hanzi.toLowerCase().includes(query) ||
+        c.pinyin.toLowerCase().includes(query) ||
+        c.english.toLowerCase().includes(query))
+    : vocab;
+
+  el.manageCount.textContent = query
+    ? "Total Vocabulary: " + vocab.length + " cards (showing " + filtered.length + ")"
+    : "Total Vocabulary: " + vocab.length + " cards";
+
+  if(filtered.length === 0){
+    el.manageList.innerHTML = '<div class="manage-empty">No matching cards.</div>';
+    return;
+  }
+
+  // Build rows in a document fragment (one reflow instead of many) so
+  // this stays smooth even with a few thousand cards.
+  const frag = document.createDocumentFragment();
+  filtered.forEach(card => {
+    const row = document.createElement("div");
+    row.className = "manage-row";
+    row.dataset.id = card.id;
+    row.innerHTML =
+      '<div class="manage-row-text">' +
+        '<span class="mr-hanzi">' + escapeHtml(card.hanzi) + '</span>' +
+        '<span class="mr-pinyin">' + escapeHtml(card.pinyin) + '</span>' +
+        '<span class="mr-english">' + escapeHtml(card.english) + '</span>' +
+      '</div>' +
+      '<div class="manage-row-actions">' +
+        '<button class="btn small" data-action="edit">Edit</button>' +
+        '<button class="btn small danger" data-action="delete">Delete</button>' +
+      '</div>';
+    frag.appendChild(row);
+  });
+
+  el.manageList.innerHTML = "";
+  el.manageList.appendChild(frag);
+}
+
+/* ---------------- 5. NAVIGATION / FLIPPING / STUDY ORDER ---------------- */
+
+function flipCard(){
+  isFlipped = !isFlipped;
+  el.card.classList.toggle("flipped", isFlipped);
+}
+
+function resetFlip(){
+  isFlipped = false;
+  el.card.classList.remove("flipped");
+}
+
+function goToCard(index){
+  if(studyOrder.length === 0) return;
+  const clamped = Math.max(0, Math.min(studyOrder.length - 1, index));
+  if(clamped === currentIndex) return;
+  currentIndex = clamped;
+  resetFlip();       // moving to a new card always shows the front
+  renderCard();
+}
+
+function nextCard(){ goToCard(currentIndex + 1); }
+function prevCard(){ goToCard(currentIndex - 1); }
+
+// Shuffles an array in place using Fisher-Yates.
+function shuffleArray(arr){
+  for(let i = arr.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+// Rebuilds studyOrder from the current vocab array. Call this any time
+// vocab changes shape (cards added, deleted, imported, replaced) so the
+// study order stays in sync. Respects the current shuffle/sequential mode.
+function rebuildStudyOrder(){
+  studyOrder = vocab.map((_, i) => i);
+  if(orderMode === "shuffled") shuffleArray(studyOrder);
+  if(currentIndex >= studyOrder.length){
+    currentIndex = Math.max(0, studyOrder.length - 1);
+  }
+}
+
+// Toggles between shuffled and sequential study order.
+function toggleShuffle(){
+  orderMode = orderMode === "shuffled" ? "sequential" : "shuffled";
+  rebuildStudyOrder();
+  currentIndex = 0;
+  resetFlip();
+  renderCard();
+  el.btnShuffle.textContent = orderMode === "shuffled" ? "🔀 Sequential Order" : "🔀 Shuffle";
+  showToast(orderMode === "shuffled" ? "Deck shuffled." : "Restored sequential order.", "success");
+}
+
+/* ---------------- 6. INPUT HANDLING ---------------- */
+
+// -- Click / tap to flip --
+el.card.addEventListener("click", () => {
+  // Ignore the click that immediately follows a swipe drag so a
+  // swipe doesn't also register as a flip.
+  if(el.card.dataset.suppressClick === "1"){
+    el.card.dataset.suppressClick = "0";
+    return;
+  }
+  flipCard();
+});
+
+// -- Buttons --
+el.btnPrev.addEventListener("click", prevCard);
+el.btnNext.addEventListener("click", nextCard);
+
+// -- Keyboard shortcuts (desktop) --
+document.addEventListener("keydown", (e) => {
+  const typingInField = document.activeElement &&
+    (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA");
+
+  // Escape always closes whichever overlay is open, even while typing.
+  if(e.code === "Escape"){
+    closeCardModal();
+    closeManagePanel();
+    return;
+  }
+
+  // Don't hijack arrow/space keys while typing, or while an overlay is open.
+  if(typingInField) return;
+  if(el.cardModalOverlay.classList.contains("show")) return;
+  if(el.manageOverlay.classList.contains("show")) return;
+  if(vocab.length === 0) return;
+
+  if(e.code === "ArrowLeft"){ e.preventDefault(); prevCard(); }
+  else if(e.code === "ArrowRight"){ e.preventDefault(); nextCard(); }
+  else if(e.code === "Space"){ e.preventDefault(); flipCard(); }
+});
+
+// -- Shuffle button --
+el.btnShuffle.addEventListener("click", toggleShuffle);
+
+// -- Touch swipe (mobile) --
+// We track horizontal drag distance; a big enough swipe triggers
+// prev/next, a small movement is treated as a tap (handled by the
+// click listener above).
+let touchStartX = 0;
+let touchStartY = 0;
+let touchDeltaX = 0;
+const SWIPE_THRESHOLD = 60; // pixels
+
+el.card.addEventListener("touchstart", (e) => {
+  const t = e.changedTouches[0];
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+  touchDeltaX = 0;
+  el.card.classList.add("dragging");
+}, { passive: true });
+
+el.card.addEventListener("touchmove", (e) => {
+  const t = e.changedTouches[0];
+  touchDeltaX = t.clientX - touchStartX;
+  // Give a subtle drag-follow feel without fighting the flip transform
+  el.card.style.transform = "translateX(" + touchDeltaX * 0.3 + "px)" +
+    (isFlipped ? " rotateY(180deg)" : "");
+}, { passive: true });
+
+el.card.addEventListener("touchend", (e) => {
+  el.card.classList.remove("dragging");
+  el.card.style.transform = ""; // let CSS classes take back over
+
+  const t = e.changedTouches[0];
+  const deltaX = t.clientX - touchStartX;
+  const deltaY = t.clientY - touchStartY;
+
+  // Only treat it as a swipe if horizontal movement dominates.
+  if(Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY)){
+    el.card.dataset.suppressClick = "1"; // prevent the trailing click from flipping
+    if(deltaX < 0) nextCard();
+    else prevCard();
+  }
+}, { passive: true });
+
+/* ---------------- 7. VOCABULARY MANAGEMENT ---------------- */
+/* Covers: unique IDs, duplicate detection, CSV import (merge or full
+   replace), the Add/Edit modal, deleting cards, and the manage panel. */
+
+// Generates a reasonably-unique id for a new card (timestamp + random suffix).
+function generateId(){
+  return "c_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+}
+
+// Returns the index of an existing card with the same Hanzi, or -1.
+// excludeId lets edits ignore the card being edited when checking itself.
+function findDuplicateIndex(hanzi, excludeId){
+  return vocab.findIndex(c => c.hanzi === hanzi && c.id !== excludeId);
+}
+
+// -- CSV import (merge or replace) --
+
+function handleFile(file){
+  if(!file){ return; }
+  if(!file.name.toLowerCase().endsWith(".csv") && file.type !== "text/csv"){
+    showToast("Please choose a .csv file.", "error");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const rows = parseCSV(e.target.result);
+      const incoming = csvRowsToVocab(rows); // [{hanzi, pinyin, english}], no ids yet
+
+      if(uploadMode === "replace"){
+        if(!confirm("Replace your entire vocabulary with this CSV? Cards not in this file will be removed.")){
+          return;
+        }
+        vocab = incoming.map(c => ({ id: generateId(), ...c }));
+        showToast("Replaced deck with " + vocab.length + " cards.", "success");
+      }else{
+        // Merge: skip any incoming row whose Hanzi already exists in the deck.
+        let added = 0, skipped = 0;
+        incoming.forEach(c => {
+          if(findDuplicateIndex(c.hanzi, null) === -1){
+            vocab.push({ id: generateId(), ...c });
+            added++;
+          }else{
+            skipped++;
+          }
+        });
+        const summary = "Added " + added + " new card" + (added === 1 ? "" : "s") +
+          (skipped > 0 ? ", skipped " + skipped + " duplicate" + (skipped === 1 ? "" : "s") + "." : ".");
+        showToast(summary, "success");
+      }
+
+      currentIndex = 0;
+      resetFlip();
+      saveVocabToStorage(vocab);
+      rebuildStudyOrder();
+      updateStageVisibility();
+      renderCard();
+      renderManageList();
+    }catch(err){
+      showToast(err.message || "Could not parse that CSV file.", "error");
+    }
+  };
+  reader.onerror = () => showToast("Could not read that file.", "error");
+  reader.readAsText(file);
+}
+
+// Opens the file picker. mode is "merge" (add to existing deck, skipping
+// duplicate Hanzi) or "replace" (swap out the whole deck).
+function triggerFileDialog(mode){
+  uploadMode = mode;
+  el.fileInput.value = ""; // reset so choosing the same file twice still fires "change"
+  el.fileInput.click();
+}
+el.btnUpload.addEventListener("click", () => triggerFileDialog("merge"));
+el.btnUploadEmpty.addEventListener("click", () => triggerFileDialog("merge"));
+el.btnReplace.addEventListener("click", () => triggerFileDialog("replace"));
+
+el.fileInput.addEventListener("change", (e) => {
+  handleFile(e.target.files[0]);
+});
+
+el.btnClear.addEventListener("click", () => {
+  if(!confirm("Clear all saved vocabulary? This cannot be undone.")) return;
+  vocab = [];
+  currentIndex = 0;
+  resetFlip();
+  clearVocabStorage();
+  rebuildStudyOrder();
+  updateStageVisibility();
+  renderManageList();
+  showToast("Vocabulary cleared.", "success");
+});
+
+// -- Export --
+el.btnExport.addEventListener("click", exportCSV);
+el.btnManageExport.addEventListener("click", exportCSV);
+
+// -- Add / Edit modal --
+
+// mode is "add" or "edit". For "edit", pass the card object to prefill.
+function openCardModal(mode, card){
+  editingId = mode === "edit" ? card.id : null;
+  el.cardModalTitle.textContent = mode === "edit" ? "Edit Card" : "Add New Card";
+  el.inputHanzi.value = card ? card.hanzi : "";
+  el.inputPinyin.value = card ? card.pinyin : "";
+  el.inputEnglish.value = card ? card.english : "";
+  el.cardModalOverlay.classList.add("show");
+  el.inputHanzi.focus();
+}
+
+function closeCardModal(){
+  el.cardModalOverlay.classList.remove("show");
+  editingId = null;
+}
+
+// Validates the modal's fields and either adds a new card or updates
+// the one being edited, then persists and re-renders everything.
+function saveCardFromModal(){
+  const hanzi = el.inputHanzi.value.trim();
+  const pinyin = el.inputPinyin.value.trim();
+  const english = el.inputEnglish.value.trim();
+
+  if(!hanzi){
+    showToast("Hanzi is required.", "error");
+    return;
+  }
+  if(findDuplicateIndex(hanzi, editingId) !== -1){
+    showToast("A card with this Hanzi already exists.", "error");
+    return;
+  }
+
+  if(editingId){
+    const card = vocab.find(c => c.id === editingId);
+    card.hanzi = hanzi; card.pinyin = pinyin; card.english = english;
+    showToast("Card updated.", "success");
+  }else{
+    vocab.push({ id: generateId(), hanzi, pinyin, english });
+    showToast("Card added.", "success");
+  }
+
+  saveVocabToStorage(vocab);
+  rebuildStudyOrder();
+  updateStageVisibility();
+  renderCard();
+  renderManageList();
+  closeCardModal();
+}
+
+el.btnAddCard.addEventListener("click", () => openCardModal("add", null));
+el.btnAddEmpty.addEventListener("click", () => openCardModal("add", null));
+el.btnManageAdd.addEventListener("click", () => openCardModal("add", null));
+el.btnCardCancel.addEventListener("click", closeCardModal);
+el.btnCardSave.addEventListener("click", saveCardFromModal);
+
+// Clicking the dimmed backdrop closes the modal (clicking the modal itself doesn't).
+el.cardModalOverlay.addEventListener("click", (e) => {
+  if(e.target === el.cardModalOverlay) closeCardModal();
+});
+// Enter saves, Escape cancels, while focus is anywhere in the modal.
+el.cardModal.addEventListener("keydown", (e) => {
+  if(e.key === "Enter"){ e.preventDefault(); saveCardFromModal(); }
+});
+
+// -- Delete --
+
+function deleteCard(id){
+  vocab = vocab.filter(c => c.id !== id);
+  saveVocabToStorage(vocab);
+  rebuildStudyOrder();
+  updateStageVisibility();
+  renderCard();
+  renderManageList();
+  showToast("Card deleted.", "success");
+}
+
+// -- Manage panel --
+
+function openManagePanel(){
+  el.searchInput.value = "";
+  renderManageList();
+  el.manageOverlay.classList.add("show");
+}
+function closeManagePanel(){
+  el.manageOverlay.classList.remove("show");
+}
+
+el.btnManage.addEventListener("click", openManagePanel);
+el.btnManage2.addEventListener("click", openManagePanel);
+el.btnManageClose.addEventListener("click", closeManagePanel);
+el.manageOverlay.addEventListener("click", (e) => {
+  if(e.target === el.manageOverlay) closeManagePanel();
+});
+
+// Search box filters the list as you type (small debounce keeps large
+// decks smooth).
+let searchDebounceTimer = null;
+el.searchInput.addEventListener("input", () => {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(renderManageList, 120);
+});
+
+// Event delegation: one listener handles Edit/Delete clicks for every
+// row, including rows added after the initial render.
+el.manageList.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-action]");
+  if(!btn) return;
+  const row = e.target.closest(".manage-row");
+  const id = row.dataset.id;
+
+  if(btn.dataset.action === "edit"){
+    const card = vocab.find(c => c.id === id);
+    if(card) openCardModal("edit", card);
+  }else if(btn.dataset.action === "delete"){
+    if(confirm("Delete this card? This cannot be undone.")) deleteCard(id);
+  }
+});
+
+/* ---------------- 8. INIT ---------------- */
+
+function init(){
+  vocab = loadVocabFromStorage();
+
+  // Cards saved by an earlier version of this app won't have an `id`
+  // yet — assign one now so edit/delete/duplicate-checks work for them.
+  let needsResave = false;
+  vocab.forEach(c => {
+    if(!c.id){ c.id = generateId(); needsResave = true; }
+  });
+  if(needsResave) saveVocabToStorage(vocab);
+
+  rebuildStudyOrder();
+  updateStageVisibility();
+  if(vocab.length > 0){
+    currentIndex = 0;
+    renderCard();
+  }
+}
+
+init();
+</script>
+
+</body>
+</html>
